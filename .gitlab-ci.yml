@@ -1,0 +1,60 @@
+---
+default:
+  tags:
+    - gitlab-ci
+
+stages:
+  - validate
+  - test
+  - build
+  - deploy
+  - cleanup
+
+include:
+  - template: Terraform/Base.gitlab-ci.yml  
+  - template: Jobs/SAST-IaC.gitlab-ci.yml   
+
+variables:
+    TF_VAR_token:     "${CI_YANDEX_CLOUD_TOKEN}"
+    TF_VAR_cloud_id:  "${CI_YANDEX_CLOUD_ID}"
+    TF_VAR_folder_id: "${CI_YANDEX_CLOUD_FOLDER_ID}"
+    TF_ROOT:          "${CI_PROJECT_DIR}"
+    TF_CACHE_KEY:     "${CI_PROJECT_NAME}-${ENV}-cache"
+    TF_STATE_NAME:    "${ENV}"
+
+before_script:
+  - cp .terraformrc ~/.terraformrc
+  - cat $CI_SSH_KEYS > /id_ecdsa.pub
+
+infra:fmt:
+  extends: .terraform:fmt
+  needs: []
+  variables:
+    ENV: "infra"
+
+infra:validate:
+  extends: .terraform:validate
+  needs: []
+  variables:
+    ENV: "infra"
+
+infra:plan:
+  extends: .terraform:build
+  variables:
+    ENV: "infra"
+
+infra:apply:
+  extends: .terraform:deploy
+  variables:
+    ENV: "infra"
+  dependencies:
+    - infra:plan
+  environment:
+    name: $TF_STATE_NAME
+
+infra:destroy:
+  extends: .terraform:destroy
+  variables:
+    ENV: "infra"
+  environment:
+    name: $TF_STATE_NAME 
